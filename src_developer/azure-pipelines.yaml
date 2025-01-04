@@ -1,0 +1,194 @@
+
+parameters:
+- name: version
+  type: string
+  default: minor
+  values:
+  - major
+  - minor
+  - patch
+
+trigger:
+  branches:
+    include:
+    - main
+
+pr:
+  branches:
+    include:
+    - main
+    - develop
+    exclude:
+      - feature/experimental/*
+  paths:
+    include:
+      - '**/*'
+variables:
+  BRANCH_NAME: $[replace(variables['Build.SourceBranch'], 'refs/heads/', '')]
+
+jobs:
+  - job: PR_Develop
+    condition: and(eq(variables['Build.Reason'], 'PullRequest'), startsWith(variables['System.PullRequest.SourceBranch'], 'refs/heads/feature/'), eq(variables['System.PullRequest.TargetBranch'], 'refs/heads/develop'))
+    steps:
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.11'
+        displayName: 'Set up Python'
+      - script: |
+          python -m pip install --upgrade pip
+          pip install poetry pytest twine pre-commit
+        displayName: 'Install dependencies: poetry, pre-commit, twine and pytest'
+      - script: |
+          pre-commit run -a
+        displayName: 'Execute pre-commit stuff'
+      - script: |
+          poetry lock --no-update
+          poetry install --all-extras
+        displayName: 'Execute poetry install'
+      - script: |
+          poetry run pytest
+        displayName: 'Execute poetry pytest'
+  - job: Develop
+    condition: eq(variables.BRANCH_NAME, 'develop')
+    steps:
+      - checkout: self
+        persistCredentials: true
+        fetchDepth: 0
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.11'
+        displayName: 'Set up Python'
+      - script: |
+          python -m pip install --upgrade pip
+          pip install poetry pytest twine pre-commit
+        displayName: 'Install dependencies: poetry, pre-commit, twine and pytest'
+      - script: |
+          pre-commit run -a
+        displayName: 'Execute pre-commit stuff'
+      - script: |
+          poetry lock --no-update
+          poetry install --all-extras
+        displayName: 'Execute poetry install'
+      - script: |
+          poetry run pytest
+        displayName: 'Execute poetry pytest'
+      - task: Bash@3
+        name: CreateReleaseBranch
+        inputs:
+          targetType: 'inline'
+          script: |
+            git config --global user.email "$(Build.RequestedForEmail)"
+            git config --global user.name "Azure Pipelines"
+            git checkout develop
+
+            # Get current version
+            CURRENT_VERSION=$(python setup.py --version)
+
+            # Split version into parts
+            IFS='.' read -r -a version_parts <<< "$CURRENT_VERSION"
+
+            # Calculate new version
+            case "${{ parameters.version }}" in
+              "major")
+                NEW_VERSION="$((${version_parts[0]}+1)).0.0b0"
+                ;;
+              "minor")
+                NEW_VERSION="${version_parts[0]}.$((${version_parts[1]}+1)).0b0"
+                ;;
+              "patch")
+                NEW_VERSION="${version_parts[0]}.${version_parts[1]}.$((${version_parts[2]}+1))b0"
+                ;;
+            esac
+            echo $NEW_VERSION
+
+            # Create and checkout release branch
+            RELEASE_BRANCH="release/${NEW_VERSION}"
+            git checkout -b $RELEASE_BRANCH
+
+            # Update setup.py version
+            sed -i "s/version=\".*\"/version=\"$NEW_VERSION\"/" setup.py
+
+            # Update pyproject.toml version
+            sed -i '/^\[tool\.poetry\]/,/^\[/{s/^version = ".*"/version = "'$NEW_VERSION'"/}' pyproject.toml
+
+            # Commit and push changes
+            git add .
+            git commit -m "Bump version to $NEW_VERSION"
+
+            git tag -a "v$NEW_VERSION" -m "Release version $NEW_VERSION"
+            git push origin $RELEASE_BRANCH --tags
+        condition: succeeded()
+  - job: Release
+    condition: startsWith(variables.BRANCH_NAME, 'release')
+    steps:
+      - checkout: self
+        persistCredentials: true
+        fetchDepth: 0
+      - task: Bash@3
+        name: CreateRelease
+        inputs:
+          targetType: 'inline'
+          script: |
+            git config --global user.email "$(Build.RequestedForEmail)"
+            git config --global user.name "Azure Pipelines"
+            CURRENT_VERSION=$(python setup.py --version)
+            git checkout -b release/$CURRENT_VERSION
+            # Get version from the files
+            NEW_VERSION="${CURRENT_VERSION%b0}"
+            # Update setup.py version
+            sed -i "s/version=\".*\"/version=\"$NEW_VERSION\"/" setup.py
+            # Update pyproject.toml version
+            sed -i '/^\[tool\.poetry\]/,/^\[/{s/^version = ".*"/version = "'$NEW_VERSION'"/}' pyproject.toml
+
+            git add .
+            git commit -m "Bump version to $NEW_VERSION"
+            git push origin release/$CURRENT_VERSION
+            az extension add --name azure-devops
+            echo $(azdevops-token-secret) | az devops login --organization https://dev.azure.com/syntonize-data/
+
+            az repos pr create \
+              --org "$(System.TeamFoundationCollectionUri)" \
+              --project "$(System.TeamProject)" \
+              --repository "$(Build.Repository.Name)" \
+              --source-branch release/$CURRENT_VERSION \
+              --target-branch "develop" \
+              --title "Sync release/$CURRENT_VERSION with develop" \
+              --description "Sync develop branch with release/$CURRENT_VERSION after release $CURRENT_VERSION"
+
+            az repos pr create \
+              --org "$(System.TeamFoundationCollectionUri)" \
+              --project "$(System.TeamProject)" \
+              --repository "$(Build.Repository.Name)" \
+              --source-branch release/$CURRENT_VERSION \
+              --target-branch "main" \
+              --title "Sync release/$CURRENT_VERSION with main" \
+              --description "Sync main branch with release/$CURRENT_VERSION after release $CURRENT_VERSION"
+        condition: succeeded()
+  - job: Main
+    condition: eq(variables.BRANCH_NAME, 'main')
+    steps:
+      - checkout: self
+        persistCredentials: true
+        fetchDepth: 0
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '3.11'
+        displayName: 'Set up Python'
+      - script: |
+          python -m pip install --upgrade pip
+          pip install poetry pytest twine pre-commit
+        displayName: 'Install dependencies: poetry, pre-commit, twine and pytest'
+      - task: Bash@3
+        name: FinalizeRelease
+        inputs:
+          targetType: 'inline'
+          script: |
+            git config --global user.email "$(Build.RequestedForEmail)"
+            git config --global user.name "Azure Pipelines"
+            NEW_VERSION=$(python setup.py --version)
+            git checkout main
+
+            git tag -a "v$NEW_VERSION" -m "Release version $NEW_VERSION"
+            git push origin "v$NEW_VERSION" --tags
+
+        condition: succeeded()

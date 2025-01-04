@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "src-developer"
+version = "0.1.0"
+description = ""
+authors = ["lucasberlang <lcalvo@syntonize.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+syntonize-corekit = {version = "0.5.0", extras = ["azure"], source = "syntonize-corekit-package"}
+
+
+[[tool.poetry.source]]
+name = "syntonize-corekit-package"
+url = "https://pkgs.dev.azure.com/syntonize-data/_packaging/syntonize-corekit-package/pypi/simple/"
+priority = "supplemental"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

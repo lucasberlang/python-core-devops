@@ -1,0 +1,3 @@
+poetry source add --priority=supplemental syntonize-corekit-package https://pkgs.dev.azure.com/syntonize-data/_packaging/syntonize-corekit-package/pypi/simple/
+poetry config http-basic.syntonize-corekit-package AzureDevopsUser BKVewSXnPh2gq2smio95syfksvtxFlNEh9V9xJRl5MzDInQULZQmJQQJ99ALACAAAAA1bgtHAAASAZDOHcpC
+poetry add --source syntonize-corekit-package syntonize-corekit=0.5.0
