@@ -84,7 +84,6 @@ By leveraging Poetry and extras, this project aims to provide both flexibility a
 
 ### 🌟 Features
 
-- Dependency Injection Container
 - Configuration Management
 - Logging System
 - Database Abstraction Layer

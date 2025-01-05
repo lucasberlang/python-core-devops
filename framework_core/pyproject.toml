@@ -7,6 +7,14 @@ license = "MIT"
 readme = "README.md"
 packages = [{include = "core"}]
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+ruff = "^0.8.0"
+mypy = "^1.13.0"
+coverage = "^7.5.4"
+python-dotenv = "^1.0.1"
+pre-commit = "^3.7.1"
+
 [tool.poetry.dependencies]
 python = "^3.11"
 azure-monitor-opentelemetry = "^1.6.4"
@@ -14,7 +22,6 @@ logging = "^0.4.9.6"
 types-pytz = "^2024.2.0.20241221"
 azure-identity = {version = "^1.19.0", optional = true}
 azure-keyvault-secrets = {version = "^4.9.0", optional = true}
-pytest = "^8.3.4"
 azure-data-tables = {version ="^12.6.0", optional = true}
 azure-search-documents = {version = "^11.5.2", optional = true}
 pyyaml = "^6.0.2"

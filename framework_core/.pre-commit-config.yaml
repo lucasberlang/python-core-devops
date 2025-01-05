@@ -10,11 +10,14 @@ repos:
         always_run: true
         name: Execute the Ruff formatter (fix code)
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.0
+    rev: v1.13.0
     hooks:
       - id: mypy
-        always_run: true
-        args: [--strict, --ignore-missing-imports]
+        args: [
+          --config-file=pyproject.toml,
+        ]
         additional_dependencies: [
           "types-PyYAML",
+          "types-requests",
+          "types-python-dateutil",
         ]

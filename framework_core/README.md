@@ -4,7 +4,6 @@ A flexible and extensible core framework designed to Python application developm
 
 ## 🌟 Features
 
-- Dependency Injection Container
 - Configuration Management
 - Logging System
 - Database Abstraction Layer
